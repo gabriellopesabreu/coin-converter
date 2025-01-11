@@ -1,16 +1,24 @@
 <template>
     <div class="currency-converter">
+        <p>API utilizada : https://app.exchangerate-api.com/ </p>
+        <p>Ultima Atualizacao de Conversao: {{ lastUpdate }}</p>
       <form @submit.prevent="convertCurrency">
         <input type="number" v-model="amount" placeholder="Valor" required />
         <select v-model="fromCurrency">
-          <option value="USD">USD</option>
-          <option value="EUR">EUR</option>
-          <option value="BRL">BRL</option>
+            <option v-for="(rate, currency) in currencyOptions" 
+            :key="currency" 
+            :value="currency"
+            >
+            {{ currency }}
+            </option>
         </select>
         <select v-model="toCurrency">
-          <option value="USD">USD</option>
-          <option value="EUR">EUR</option>
-          <option value="BRL">BRL</option>
+            <option v-for="(rate, currency) in currencyOptions" 
+            :key="currency" 
+            :value="currency"
+            >
+            {{ currency }}
+            </option>
         </select>
         <button type="submit">Converter</button>
       </form>
@@ -20,6 +28,7 @@
   </template>
   
   <script>
+
   export default {
     data() {
       return {
@@ -28,29 +37,59 @@
         toCurrency: 'BRL',
         result: null,
         error: null,
+        currencyOptions: {},
+        lastUpdate: '',
       };
     },
-    methods: {
-      async convertCurrency() {
-        const apiKey = process.env.VUE_APP_API_KEY;
-        const url = `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${this.toCurrency}`;
-  
-        try {
-          const response = await fetch(url);
-          const data = await response.json();
-          console.log(data)
-          if (data.result === 'success') {
-            this.result = (this.amount * data.conversion_rate).toFixed(2);
-            this.error = null;
-          } else {
-            this.error = 'Erro ao buscar taxas de câmbio.';
-          }
-        } catch (err) {
-          this.error = 'Erro de conexão. Tente novamente.';
-        }
-      },
+    created() {
+        this.getCurrencyOptions()
     },
-  };
+    methods: {
+        getRequest() {
+            const apiKey = process.env.VUE_APP_API_KEY;
+            const url = `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${this.fromCurrency}`;
+            return fetch(url);
+        },
+        async getCurrencyOptions() {
+            try {
+                const response = await this.getRequest()
+                const data = await response.json()
+                if (data.result === 'success') {
+                this.lastUpdate = data.time_last_update_utc
+                this.currencyOptions = data.conversion_rates
+                } else {
+                this.error = 'Erro ao buscar opções de moedas.'
+                }
+            } catch (err) {
+                console.error(err);
+                this.error = 'Erro de conexão. Tente novamente.'
+            }
+        },
+        async convertCurrency() {
+            try {
+                // const response = await fetch(url);
+                const data = await this.getRequest().then((response) => response.json())
+                console.log(data);
+
+                if (data.result === 'success') {
+                // Obter a taxa de conversão para a moeda de destino
+                const rate = data.conversion_rates[this.toCurrency]
+                if (rate) {
+                    this.result = (this.amount * rate).toFixed(2)
+                    this.error = null;
+                } else {
+                    this.error = `Taxa de conversão para ${this.toCurrency} não encontrada.`
+                }
+                } else {
+                this.error = 'Erro ao buscar taxas de câmbio.'
+                }
+            } catch (err) {
+                console.error(err);
+                this.error = 'Erro de conexão. Tente novamente.'
+            }
+        }
+    }
+}
   </script>
   
   <style scoped>
